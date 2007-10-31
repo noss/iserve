@@ -1,9 +1,9 @@
 -module(iserve_socket).
 
--export([start_link/3]).
+-export([start_link/4]).
 
 -export([init/1]).
--include("iserve.hrl").
+-include("../include/iserve.hrl").
 
 -define(not_implemented_501, "HTTP/1.1 501 Not Implemented\r\n\r\n").
 -define(forbidden_403, "HTTP/1.1 403 Forbidden\r\n\r\n").
@@ -12,24 +12,27 @@
 -record(c,  {sock,
              port,
              peer_addr,
-             peer_port
+             peer_port,
+             cb_mod      % callback module M:iserve_request(#req{})
 	     }).
 
 -define(server_idle_timeout, 30*1000).
 
-start_link(ListenPid, ListenSocket, ListenPort) ->
-    proc_lib:spawn_link(?MODULE, init, [{ListenPid, ListenSocket, ListenPort}]).
+start_link(CbMod, ListenPid, ListenSocket, ListenPort) ->
+    proc_lib:spawn_link(?MODULE, init, 
+                        [{CbMod, ListenPid, ListenSocket, ListenPort}]).
 
-init({Listen_pid, Listen_socket, ListenPort}) ->
+init({CbMod, Listen_pid, Listen_socket, ListenPort}) ->
     case catch gen_tcp:accept(Listen_socket) of
 	{ok, Socket} ->
             %% Send the cast message to the listener process to create a new acceptor
 	    iserve_server:create(Listen_pid, self()),
 	    {ok, {Addr, Port}} = inet:peername(Socket),
-            C = #c{sock = Socket,
-                   port = ListenPort,
+            C = #c{sock      = Socket,
+                   port      = ListenPort,
                    peer_addr = Addr,
-                   peer_port = Port},
+                   peer_port = Port,
+                   cb_mod    = CbMod},
 	    request(C, #req{}); %% Jump to state 'request'
 	Else ->
 	    error_logger:error_report([{application, iserve},
@@ -117,13 +120,11 @@ body(#c{sock = Sock} = C, Req) ->
 
 handle_get(C, #req{connection = Conn} = Req) ->
     case Req#req.uri of
-        {abs_path, Path} ->
-            {F, Args} = split_at_q_mark(Path, []),
-            call_mfa(F, Args, C, Req),
+        {abs_path, _Path} ->
+            call_mfa(C, Req),
             Conn;
-        {absoluteURI, http, _Host, _, Path} ->
-            {F, Args} = split_at_q_mark(Path, []),
-            call_mfa(F, Args, C, Req),
+        {absoluteURI, http, _Host, _, _Path} ->
+            call_mfa(C, Req),
             Conn;
         {absoluteURI, _Other_method, _Host, _, _Path} ->
             send(C, ?not_implemented_501),
@@ -138,11 +139,11 @@ handle_get(C, #req{connection = Conn} = Req) ->
 
 handle_post(C, #req{connection = Conn} = Req) ->
     case Req#req.uri of
-        {abs_path, Path} ->
-            call_mfa(Path, Req#req.body, C, Req),
+        {abs_path, _Path} ->
+            call_mfa(C, Req),
             Conn;
-        {absoluteURI, http, _Host, _, Path} ->
-            call_mfa(Path, Req#req.body, C, Req),
+        {absoluteURI, http, _Host, _, _Path} ->
+            call_mfa(C, Req),
             Conn;
         {absoluteURI, _Other_method, _Host, _, _Path} ->
             send(C, ?not_implemented_501),
@@ -155,24 +156,20 @@ handle_post(C, #req{connection = Conn} = Req) ->
             close
     end.
 
-call_mfa(F, A, C, Req) ->
-    case iserve:lookup(C#c.port, Req#req.method, F) of
-        {ok, Mod, Func} ->
-            case catch Mod:Func(Req, A) of
-                {'EXIT', Reason} ->
-                    io:format("Worker Crash = ~p~n",[Reason]),
-                    exit(normal);
-                {200, Headers0, Body} ->
-                    Headers = add_content_length(Headers0, Body),
-                    Enc_headers = enc_headers(Headers),
-                    Resp = [<<"HTTP/1.1 200 OK\r\n">>,
-                            Enc_headers,
-                            <<"\r\n">>,
-                            Body],
-                    send(C, Resp)
-            end;
-        {error, not_found} ->
-            send(C, ?not_found_404)
+call_mfa(C, Req) ->
+    Mod = C#c.cb_mod,
+    case catch Mod:iserve_request(Req) of
+        {'EXIT', Reason} ->
+            io:format("Worker Crash = ~p~n",[Reason]),
+            exit(normal);
+        {200, Headers0, Body} ->
+            Headers = add_content_length(Headers0, Body),
+            Enc_headers = enc_headers(Headers),
+            Resp = [<<"HTTP/1.1 200 OK\r\n">>,
+                    Enc_headers,
+                    <<"\r\n">>,
+                    Body],
+            send(C, Resp)
     end.
        
 add_content_length(Headers, Body) ->

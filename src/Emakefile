@@ -1,0 +1,4 @@
+{['iserve_server','iserve_socket','iserve_app','iserve_sup'],
+ [{outdir,"../ebin"},debug_info]}.
+
+

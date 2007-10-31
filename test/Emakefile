@@ -1,0 +1,4 @@
+{['iserve_test'],
+ [{outdir,"../ebin"},debug_info]}.
+
+

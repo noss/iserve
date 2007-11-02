@@ -11,7 +11,8 @@ iserve_request(Req) ->
     error_logger:info_msg("~p(~p): GOT Req = ~p~n", 
                           [?MODULE, ?LINE, Req]),
 
-    {200, [], <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
+    {200, [{'Content-Type', "text/html"}], 
+     <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
 <html>
 <head>
   <title>Welcome to iserve</title>
@@ -19,4 +20,5 @@ iserve_request(Req) ->
 <body>
   Hello
 </body>
-</html>">>}.
+</html>
+">>}.

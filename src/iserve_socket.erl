@@ -3,6 +3,10 @@
 -export([start_link/4]).
 
 -export([init/1]).
+
+%% TODO: Remove me
+-compile(export_all).
+
 -include("../include/iserve.hrl").
 
 -define(not_implemented_501, "HTTP/1.1 501 Not Implemented\r\n\r\n").
@@ -34,6 +38,7 @@ init({CbMod, Listen_pid, Listen_socket, ListenPort}) ->
                    peer_port = Port,
                    cb_mod    = CbMod},
 	    request(C, #req{}); %% Jump to state 'request'
+
 	Else ->
 	    error_logger:error_report([{application, iserve},
 				       "Accept failed error",
@@ -194,18 +199,6 @@ enc_header_val(Val) when is_integer(Val) ->
     integer_to_list(Val);
 enc_header_val(Val) ->
     Val.
-
-%% Split the path at the ?. This would have to do all sorts of
-%% horrible ../../ path checks and %C3 etc decoding if we wanted to
-%% retrieve actual paths to real filesystem files. As it is we only
-%% want to look it up as a key in mnesia/ets :)
-split_at_q_mark([$?|T], Acc) ->
-    {lists:reverse(Acc), T};
-split_at_q_mark([H|T], Acc) ->
-    split_at_q_mark(T, [H|Acc]);
-split_at_q_mark([], Acc) ->
-    {lists:reverse(Acc), []}.
-
   
 send(#c{sock = Sock}, Data) ->
     case gen_tcp:send(Sock, Data) of

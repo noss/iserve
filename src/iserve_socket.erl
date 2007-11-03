@@ -182,7 +182,7 @@ add_content_length(Headers, Body) ->
         {value, _} ->
             Headers;
         false ->
-            [{'Content-Length', size(Body)}|Headers]
+            [{'Content-Length', erlang:iolist_size(Body)}|Headers]
     end.
 
 

@@ -167,10 +167,15 @@ call_mfa(C, Req) ->
         {'EXIT', Reason} ->
             io:format("Worker Crash = ~p~n",[Reason]),
             exit(normal);
-        {200, Headers0, Body} ->
+
+	%% Responses here should be congruent with the methods
+	%% in iserve that 'hide' this internal dependence from 
+	%% iserve_server behavior callbacks.
+        {StatusCode, Headers0, Body} ->
             Headers = add_content_length(Headers0, Body),
             Enc_headers = enc_headers(Headers),
-            Resp = [<<"HTTP/1.1 200 OK\r\n">>,
+	    Enc_status = enc_status(StatusCode),
+            Resp = [<<"HTTP/1.1 ">>, Enc_status, <<"\r\n">>,
                     Enc_headers,
                     <<"\r\n">>,
                     Body],
@@ -199,7 +204,13 @@ enc_header_val(Val) when is_integer(Val) ->
     integer_to_list(Val);
 enc_header_val(Val) ->
     Val.
+
+enc_status(200)  -> "200 OK";
+enc_status(404)  -> "404 NOT FOUND";
+enc_status(501)  -> "501 INTERNAL SERVER ERROR";
+enc_status(Code) -> integer_to_list(Code).
   
+
 send(#c{sock = Sock}, Data) ->
     case gen_tcp:send(Sock, Data) of
         ok ->

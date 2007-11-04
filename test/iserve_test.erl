@@ -8,17 +8,23 @@ start(Port) ->
 
 
 iserve_request(Req) ->
-    error_logger:info_msg("~p(~p): GOT Req = ~p~n", 
-                          [?MODULE, ?LINE, Req]),
+    error_logger:info_report(
+      lists:zip(record_info(fields, req), tl(tuple_to_list(Req)))),
+    
+    Headers = [{'Content-Type', "text/html"}],
+    iserve:reply_ok(Headers, body_ok()).
 
-    {200, [{'Content-Type', "text/html"}], 
-     <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
+body_ok() ->
+    <<"<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
 <html>
 <head>
   <title>Welcome to iserve</title>
 </head>
 <body>
-  Hello
+  <h1>Welcome</h1>
+  this is iserve.
 </body>
 </html>
-">>}.
+">>.
+
+

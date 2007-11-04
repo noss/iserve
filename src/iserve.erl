@@ -30,7 +30,7 @@ reply_raw(Status, Headers, Body)                     ->
 response(Status, Headers, Body) when is_atom(Status) ->
     response(status_code(Status), Headers, Body);
 response(StatusCode, Headers, Body)                  ->
-    {StatusCode, Headers, Body}.
+    {respond, StatusCode, Headers, Body}.
 
 
 %% Named HTTP status codes to numeric code.

@@ -171,7 +171,9 @@ call_mfa(C, Req) ->
 	%% Responses here should be congruent with the methods
 	%% in iserve that 'hide' this internal dependence from 
 	%% iserve_server behavior callbacks.
-        {StatusCode, Headers0, Body} ->
+
+	%% A basic identity http response.
+        {respond, StatusCode, Headers0, Body} ->
             Headers = add_content_length(Headers0, Body),
             Enc_headers = enc_headers(Headers),
 	    Enc_status = enc_status(StatusCode),
@@ -179,7 +181,19 @@ call_mfa(C, Req) ->
                     Enc_headers,
                     <<"\r\n">>,
                     Body],
-            send(C, Resp)
+            send(C, Resp);
+	
+	%% Chunked transfer-encoding for streaming output
+	{stream, StatusCode, Headers0, Pid, Subscribe} ->
+	    TE = {'Transfer-Encoding', "chunked"},
+	    Headers1 = [TE |Headers0],
+            Enc_headers = enc_headers(Headers1),
+	    Enc_status = enc_status(StatusCode),
+            Resp = [<<"HTTP/1.1 ">>, Enc_status, <<"\r\n">>,
+                    Enc_headers,
+                    <<"\r\n">>],
+	    send(C, Resp),
+	    send_chunked(C, Pid, Subscribe)
     end.
        
 add_content_length(Headers, Body) ->
@@ -218,3 +232,38 @@ send(#c{sock = Sock}, Data) ->
         _ ->
             exit(normal)
     end.
+
+
+send_chunked(C, Pid, Subscribe) ->
+    MRef = erlang:monitor(process, Pid),
+    Pid ! {subscribe, self(), MRef, Subscribe},
+    receive
+	{subscribed, MRef} ->
+	    send_chunked0(C, Pid, MRef);
+	{'DOWN', MRef, process, Pid, Info} ->
+	    throw({chunked_process_crash, Info})
+    end,
+    erlang:demonitor(MRef, [flush]),
+    ok.
+    
+send_chunked0(C, Pid, MRef) ->
+    Pid ! {ready, MRef},
+    receive
+	{chunk, MRef, ChunkData} ->
+	    ChunkSize = erlang:integer_to_list(erlang:iolist_size(ChunkData), 
+					       16),
+	    Chunk = [ChunkSize, <<"\r\n">>, ChunkData, <<"\r\n">>],
+	    send(C, Chunk),
+	    send_chunked0(C, Pid, MRef);
+	{last_chunk, MRef, Trailers} ->
+	    Enc_trailers = enc_headers(Trailers),
+	    Chunk = [<<"0\r\n">>,
+		     Enc_trailers,
+		     <<"\r\n">>],
+	    send(C, Chunk);
+	{'DOWN', MRef, process, Pid, Info} ->
+	    throw({chunked_process_crash, Info})
+    end.
+
+	    
+	    

@@ -1,32 +1,29 @@
 -module(iserve_socket).
 
--export([start_link/4]).
+-export([start_link/5
+         ,send_reply/3, send_reply/4
+        ]).
 
 -export([init/1]).
 
 %% TODO: Remove me
--compile(export_all).
+%%-compile(export_all).
 
 -include("../include/iserve.hrl").
+-include("iserve_socket.hrl").
 
 -define(not_implemented_501, "HTTP/1.1 501 Not Implemented\r\n\r\n").
 -define(forbidden_403, "HTTP/1.1 403 Forbidden\r\n\r\n").
 -define(not_found_404, "HTTP/1.1 404 Not Found\r\n\r\n").
 
--record(c,  {sock,
-             port,
-             peer_addr,
-             peer_port,
-             cb_mod      % callback module M:iserve_request(#req{})
-	     }).
 
 -define(server_idle_timeout, 30*1000).
 
-start_link(CbMod, ListenPid, ListenSocket, ListenPort) ->
+start_link(CbMod, CbData, ListenPid, ListenSocket, ListenPort) ->
     proc_lib:spawn_link(?MODULE, init, 
-                        [{CbMod, ListenPid, ListenSocket, ListenPort}]).
+                        [{CbMod, CbData, ListenPid, ListenSocket, ListenPort}]).
 
-init({CbMod, Listen_pid, Listen_socket, ListenPort}) ->
+init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}) ->
     case catch gen_tcp:accept(Listen_socket) of
 	{ok, Socket} ->
             %% Send the cast message to the listener process to create a new acceptor
@@ -36,7 +33,8 @@ init({CbMod, Listen_pid, Listen_socket, ListenPort}) ->
                    port      = ListenPort,
                    peer_addr = Addr,
                    peer_port = Port,
-                   cb_mod    = CbMod},
+                   cb_mod    = CbMod,
+                   cb_data   = CbData},
 	    request(C, #req{}); %% Jump to state 'request'
 
 	Else ->
@@ -163,7 +161,10 @@ handle_post(C, #req{connection = Conn} = Req) ->
 
 call_mfa(C, Req) ->
     Mod = C#c.cb_mod,
-    case catch Mod:iserve_request(Req) of
+    case catch Mod:iserve_request(C, Req) of
+        no_reply ->
+            ok;
+
         {'EXIT', Reason} ->
             io:format("Worker Crash = ~p~n",[Reason]),
             exit(normal);
@@ -175,26 +176,29 @@ call_mfa(C, Req) ->
 	%% A basic identity http response.
         {respond, StatusCode, Headers0, Body} ->
             Headers = add_content_length(Headers0, Body),
-            Enc_headers = enc_headers(Headers),
-	    Enc_status = enc_status(StatusCode),
-            Resp = [<<"HTTP/1.1 ">>, Enc_status, <<"\r\n">>,
-                    Enc_headers,
-                    <<"\r\n">>,
-                    Body],
-            send(C, Resp);
+            send_reply(C, StatusCode, Headers, Body);
 	
 	%% Chunked transfer-encoding for streaming output
 	{stream, StatusCode, Headers0, Pid, Subscribe} ->
 	    TE = {'Transfer-Encoding', "chunked"},
 	    Headers1 = [TE |Headers0],
-            Enc_headers = enc_headers(Headers1),
-	    Enc_status = enc_status(StatusCode),
-            Resp = [<<"HTTP/1.1 ">>, Enc_status, <<"\r\n">>,
-                    Enc_headers,
-                    <<"\r\n">>],
-	    send(C, Resp),
+            send_reply(C, StatusCode, Headers1),
 	    send_chunked(C, Pid, Subscribe)
     end.
+
+%%% Part of the exported API.
+send_reply(C, StatusCode, Headers) ->
+    send_reply(C, StatusCode, Headers, "").
+
+send_reply(C, StatusCode, Headers, Body) ->
+    Enc_headers = enc_headers(Headers),
+    Enc_status = enc_status(StatusCode),
+    Resp = [<<"HTTP/1.1 ">>, Enc_status, <<"\r\n">>,
+            Enc_headers,
+            <<"\r\n">>,
+            Body],
+    send(C, Resp).
+
        
 add_content_length(Headers, Body) ->
     case lists:keysearch('Content-Length', 1, Headers) of

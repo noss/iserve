@@ -1,13 +1,15 @@
 -module(iserve_test2).
--export([start/1, iserve_request/1]).
+-export([start/1, iserve_request/2]).
 -include("../include/iserve.hrl").
+
+-behaviour(iserve).
 
 
 start(Port) ->
     iserve_server:start(Port, ?MODULE).
 
 
-iserve_request(Req) ->
+iserve_request(_C, Req) ->
     error_logger:info_report(
       lists:zip(
 	record_info(fields, req), 

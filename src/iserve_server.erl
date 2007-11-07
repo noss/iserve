@@ -2,27 +2,37 @@
 
 -behaviour(gen_server).
 
--export([start/2, 
-         start_link/2, 
-         create/2]).
+-export([start/2, start/3
+         ,start_link/2, start_link/3
+         ,create/2
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
--record(state, {listen_socket,
-                port,
-                acceptor,
-                cb_mod}).
+-record(state, {
+          listen_socket,
+          port,
+          acceptor,
+          cb_mod,
+          cb_data 
+         }).
 
 %%--------------------------------------------------------------------
 start(Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
+    start(Port, CbMod, undef).
+
+start(Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
     Name = list_to_atom(lists:flatten(io_lib:format("iserve_~w", [Port]))),
-    gen_server:start({local, Name}, ?MODULE, [Port,CbMod], []).
+    gen_server:start({local, Name}, ?MODULE, [Port,CbMod,CbData], []).
 
 start_link(Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
+    start_link(Port, CbMod, undef).
+
+start_link(Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
     Name = list_to_atom(lists:flatten(io_lib:format("iserve_~w", [Port]))),
-    gen_server:start_link({local, Name}, ?MODULE, [Port,CbMod], []).
+    gen_server:start_link({local, Name}, ?MODULE, [Port,CbMod,CbData], []).
 
 %% Send message to cause a new acceptor to be created
 create(ServerPid, Pid) ->
@@ -30,7 +40,7 @@ create(ServerPid, Pid) ->
 
 
 %% Called by gen_server framework at process startup. Create listening socket
-init([Port,CbMod]) ->
+init([Port,CbMod,CbData]) ->
     process_flag(trap_exit, true),
     case gen_tcp:listen(Port,[binary, {packet, http},
                               {reuseaddr, true},
@@ -38,11 +48,12 @@ init([Port,CbMod]) ->
                               {backlog, 30}]) of
 	{ok, Listen_socket} ->
             %%Create first accepting process
-	    Pid = iserve_socket:start_link(CbMod, self(), Listen_socket, Port),
+	    Pid = iserve_socket:start_link(CbMod, CbData, self(), Listen_socket, Port),
 	    {ok, #state{listen_socket = Listen_socket,
                         port          = Port,
 			acceptor      = Pid,
-                        cb_mod        = CbMod}};
+                        cb_mod        = CbMod,
+                        cb_data       = CbData}};
 	{error, Reason} ->
 	    {stop, Reason}
     end.
@@ -54,8 +65,11 @@ handle_call(_Request, _From, State) ->
 
 %% Called by gen_server framework when the cast message from create/2 is received
 handle_cast({create, _Pid}, #state{listen_socket = Listen_socket} = State) ->
-    New_pid = iserve_socket:start_link(State#state.cb_mod, self(), 
-                                       Listen_socket, State#state.port),
+    New_pid = iserve_socket:start_link(State#state.cb_mod,
+                                       State#state.cb_data, 
+                                       self(), 
+                                       Listen_socket, 
+                                       State#state.port),
     {noreply, State#state{acceptor=New_pid}};
 
 handle_cast(_Msg, State) ->
@@ -68,8 +82,11 @@ handle_info({'EXIT', Pid, normal}, #state{acceptor=Pid} = State) ->
 %% The current acceptor has died, wait a little and try again
 handle_info({'EXIT', Pid, _Abnormal}, #state{acceptor=Pid} = State) ->
     timer:sleep(2000),
-    iserve_socket:start_link(State#state.cb_mod, self(), 
-                             State#state.listen_socket, State#state.port),
+    iserve_socket:start_link(State#state.cb_mod, 
+                             State#state.cb_data, 
+                             self(), 
+                             State#state.listen_socket, 
+                             State#state.port),
     {noreply, State};
 
 handle_info(_Info, State) ->

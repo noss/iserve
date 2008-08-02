@@ -9,4 +9,5 @@
 
          {registered, [	iserve_sup]},
          {applications, [kernel, stdlib, sasl]},
-	 {mod, {iserve_app, []}}]}.
+	 {mod, {iserve_app, []}},
+	 {env, [{port, 8080}, {callback, iserve_test}]}]}.

@@ -18,19 +18,7 @@ init([]) ->
     {ok, {{one_for_one, 10, 1}, [Server]}}.
 
 get_config() ->
-    DefaultPort = 8080,
-    DefaultCallback = iserve_test,
-    try 
-	file:consult(filename:join(code:priv_dir(iserve), "iserve.conf")) 
-    of
-	{error, enoent} ->
-	    [DefaultPort, DefaultCallback];
-	{ok, Conf} ->
-	    [
-	     proplists:get_value(port, Conf, DefaultPort),
-	     proplists:get_value(callback, Conf, DefaultCallback)
-	    ]
-    catch
-	_ ->
-	    [DefaultPort, DefaultCallback]
-    end.
+    {ok, Port} = application:get_env(iserve, port),
+    {ok, Callback} = application:get_env(iserve, callback),
+    [Port, Callback].
+

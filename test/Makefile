@@ -6,6 +6,6 @@ test:
 	$(ERL) -make 
 
 clean:
-	rm -f *.beam
+	rm -f *.app *.beam
 
 

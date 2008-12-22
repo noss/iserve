@@ -1,4 +1,4 @@
-{['iserve', 'iserve_server','iserve_socket','iserve_app','iserve_sup', 'iserve_util'],
+{['*'],
  [{outdir,"../ebin"},debug_info]}.
 
 

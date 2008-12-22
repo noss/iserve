@@ -1,13 +1,14 @@
 -module(iserve_server).
-
 -behaviour(gen_server).
 
--export([start/2, start/3
-         ,start_link/2, start_link/3
-         ,create/2
+-export([start/2, 
+	 start/3,
+	 start_link/2,
+	 start_link/3,
+	 start_link/4,
+         create/2
         ]).
 
-%% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
@@ -19,19 +20,23 @@
           cb_data 
          }).
 
-%%--------------------------------------------------------------------
+%%% API
+
 start(Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
     start(Port, CbMod, undef).
 
 start(Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
-    Name = list_to_atom(lists:flatten(io_lib:format("iserve_~w", [Port]))),
+    Name = list_to_atom(lists:concat([iserve_, Port])),
     gen_server:start({local, Name}, ?MODULE, [Port,CbMod,CbData], []).
 
-start_link(Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
+start_link(Master, {_Starter, Port, Callback, Context}) ->
+    start_link(Master, Port, Callback, Context).
+
+start_link(_Master, Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
     start_link(Port, CbMod, undef).
 
-start_link(Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
-    Name = list_to_atom(lists:flatten(io_lib:format("iserve_~w", [Port]))),
+start_link(_Master, Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
+    Name = list_to_atom(lists:concat([iserve_, Port])),
     gen_server:start_link({local, Name}, ?MODULE, [Port,CbMod,CbData], []).
 
 %% Send message to cause a new acceptor to be created
@@ -39,17 +44,19 @@ create(ServerPid, Pid) ->
     gen_server:cast(ServerPid, {create, Pid}).
 
 
-%% Called by gen_server framework at process startup. Create listening socket
+%%% Callbacks
+
 init([Port,CbMod,CbData]) ->
     process_flag(trap_exit, true),
     case gen_tcp:listen(Port,[binary, {packet, http},
                               {reuseaddr, true},
                               {active, false},
                               {backlog, 30}]) of
-	{ok, Listen_socket} ->
+	{ok, ListenSocket} ->
             %%Create first accepting process
-	    Pid = iserve_socket:start_link(CbMod, CbData, self(), Listen_socket, Port),
-	    {ok, #state{listen_socket = Listen_socket,
+	    Pid = iserve_socket:start_link(CbMod, CbData, 
+					   self(), ListenSocket, Port),
+	    {ok, #state{listen_socket = ListenSocket,
                         port          = Port,
 			acceptor      = Pid,
                         cb_mod        = CbMod,

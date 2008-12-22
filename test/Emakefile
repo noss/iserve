@@ -1,4 +1,4 @@
 {['iserve_test', 'iserve_test2', 'iserve_test3'],
- [{outdir,"../ebin"},{pa,"../ebin"},debug_info]}.
+ [{d, 'TEST'}, debug_info]}.
 
 

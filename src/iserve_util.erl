@@ -9,7 +9,7 @@
 urldecode(String) ->
     httpd_util:decode_hex(String).
 
--ifdef(TEST).
+-ifdef(XTEST).
 urlencode_test_() ->
     [
      ?_assertMatch("ABCXYZ", urlencode("ABCXYZ")),

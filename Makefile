@@ -2,15 +2,17 @@
 ERL=erl
 
 .PHONY: all src test clean
-all: src test
+all: src 
 
 src:
-	cd src && $(ERL) -make all
+	$(MAKE) -C src
 
 test:
-	cd test && $(ERL) -pa ../ebin -make all
+	$(MAKE) -C src test
+	$(MAKE) -C test test
 
 clean:
-	cd ebin && rm -f *.beam
+	$(MAKE) -C src clean
+	$(MAKE) -C test clean
 
 

@@ -39,12 +39,18 @@
          ,c_cb_data/1
         ]).
 
+-export([
+	 add_server/3
+	 ]).
      
 behaviour_info(callbacks) ->
     [{iserve_request,2}];
 behaviour_info(_Other) ->
     undefined.
 
+add_server(Port, Module, Args) ->
+    Conf = {self(), Port, Module, Args},
+    gen_server:call(iserve_master, {add_server, Conf}).
 
 send_reply(C, StatusCode, Headers) ->
     iserve_socket:send_reply(C, StatusCode, Headers).

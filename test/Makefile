@@ -1,11 +1,11 @@
 
 ERL=erl
 
-.PHONY: all src clean
-all:
-	$(ERL) -pa ../ebin -make all
+.PHONY: test 
+test:
+	$(ERL) -make 
 
 clean:
-	rm -f ../ebin/*.beam
+	rm -f *.beam
 
 

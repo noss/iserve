@@ -40,6 +40,7 @@
         ]).
 
 -export([
+	 start/0,
 	 add_server/3
 	 ]).
      
@@ -47,6 +48,9 @@ behaviour_info(callbacks) ->
     [{iserve_request,2}];
 behaviour_info(_Other) ->
     undefined.
+
+start() ->
+    application:start(iserve).
 
 add_server(Port, Module, Args) ->
     Conf = {self(), Port, Module, Args},

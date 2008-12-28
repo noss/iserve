@@ -103,7 +103,7 @@ body(#c{sock = Sock} = C, Req) ->
             end;
         'POST' when is_integer(Req#req.content_length) ->
             inet:setopts(Sock, [{packet, raw}]),
-            case gen_tcp:recv(Sock, Req#req.content_length, 60000) of
+            case recv_bytes(Sock, Req#req.content_length, 60000) of
                 {ok, Bin} ->
                     Close = handle_post(C, Req#req{body = Bin}),
                     case Close of
@@ -120,6 +120,13 @@ body(#c{sock = Sock} = C, Req) ->
             send(C, ?not_implemented_501),
             exit(normal)
     end.
+
+%% A posted body can be zero, but passing zero to gen_tcp:recv asks it
+%% to block and read as much as available.
+recv_bytes(_Sock, 0, _Timeout) ->
+    {ok, <<>>};
+recv_bytes(Sock, Bytes, Timeout) ->
+    gen_tcp:recv(Sock, Bytes, Timeout).
 
 handle_get(C, #req{connection = Conn} = Req) ->
     case Req#req.uri of

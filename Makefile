@@ -8,10 +8,10 @@ src:
 	$(MAKE) -C src
 
 test:
-	$(MAKE) -C src test
-	$(MAKE) -C test test
+	$(MAKE) -C test 
 
 clean:
+	rm -f ebin/*
 	$(MAKE) -C src clean
 	$(MAKE) -C test clean
 

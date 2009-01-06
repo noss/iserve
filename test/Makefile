@@ -1,9 +1,10 @@
 
 ERL=erl
 
-.PHONY: test 
-test:
-	$(ERL) -make 
+.PHONY: all 
+
+all:
+	$(ERL) -pz ../../*/ebin -make 
 
 clean:
 	rm -f *.app *.beam

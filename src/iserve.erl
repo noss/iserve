@@ -94,7 +94,7 @@ response(Status, Headers, {Mime, Body}) ->
 response(Status, Headers, Body) when is_atom(Status) ->
     response(status_code(Status), Headers, Body);
 response(StatusCode, Headers, Body)                  ->
-    {respond, StatusCode, Headers, Body}.
+    {respond, StatusCode, lists:reverse(Headers), Body}.
 
 
 %% Named HTTP status codes to numeric code.
@@ -108,6 +108,7 @@ status_code(bad_request)           -> 400;
 status_code(unauthorized)          -> 401;
 status_code(forbidden)             -> 403;
 status_code(not_found)             -> 404;
+status_code(method_not_allowed)    -> 405;
 status_code(internal_server_error) -> 500;
 status_code(service_unavailable)   -> 503.
 

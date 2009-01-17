@@ -236,7 +236,7 @@ enc_status(200)  -> "200 OK";
 enc_status(304)  -> <<"304 NOT MODIFIED">>;
 enc_status(404)  -> "404 NOT FOUND";
 enc_status(501)  -> "501 INTERNAL SERVER ERROR";
-enc_status(Code) -> integer_to_list(Code).
+enc_status(Code) -> [integer_to_list(Code), " WHATEVER"].
   
 
 send(#c{sock = Sock}, Data) ->

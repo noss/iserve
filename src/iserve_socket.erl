@@ -15,7 +15,7 @@
 -define(not_implemented_501, "HTTP/1.1 501 Not Implemented\r\n\r\n").
 -define(forbidden_403, "HTTP/1.1 403 Forbidden\r\n\r\n").
 -define(not_found_404, "HTTP/1.1 404 Not Found\r\n\r\n").
-
+-define(request_timeout_408, <<"HTTP/1.1 408 Request Timeout\r\n\r\n">>).
 
 -define(server_idle_timeout, 30*1000).
 
@@ -44,7 +44,7 @@ init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}) ->
 	    exit({error, accept_failed})
     end.
 request(C, Req) ->
-    case gen_tcp:recv(C#c.sock, 0, 30000) of
+    case gen_tcp:recv(C#c.sock, 0, 5000) of
         {ok, {http_request, Method, Path, Version}} ->
             headers(C, Req#req{vsn = Version,
                                method = Method,
@@ -54,6 +54,7 @@ request(C, Req) ->
 	{error, {http_error, "\n"}} ->
             request(C, Req);
 	_Other ->
+            send(C, ?request_timeout_408),
 	    exit(normal)
     end.
 
@@ -103,7 +104,7 @@ body(#c{sock = Sock} = C, Req) ->
             end;
         'POST' when is_integer(Req#req.content_length) ->
             inet:setopts(Sock, [{packet, raw}]),
-            case gen_tcp:recv(Sock, Req#req.content_length, 60000) of
+            case recv_bytes(Sock, Req#req.content_length, 60000) of
                 {ok, Bin} ->
                     Close = handle_post(C, Req#req{body = Bin}),
                     case Close of
@@ -120,6 +121,13 @@ body(#c{sock = Sock} = C, Req) ->
             send(C, ?not_implemented_501),
             exit(normal)
     end.
+
+%% A posted body can be zero, but passing zero to gen_tcp:recv asks it
+%% to block and read as much as available.
+recv_bytes(_Sock, 0, _Timeout) ->
+    {ok, <<>>};
+recv_bytes(Sock, Bytes, Timeout) ->
+    gen_tcp:recv(Sock, Bytes, Timeout).
 
 handle_get(C, #req{connection = Conn} = Req) ->
     case Req#req.uri of
@@ -168,12 +176,13 @@ call_mfa(C, Req) ->
         {'EXIT', Reason} ->
             io:format("Worker Crash = ~p~n",[Reason]),
             exit(normal);
-
-	%% Responses here should be congruent with the methods
-	%% in iserve that 'hide' this internal dependence from 
-	%% iserve_server behavior callbacks.
+	
+	%% These patterns are hidden from callback code
+	%% through iserve:reply_* functions
 
 	%% A basic identity http response.
+	{respond, StatusCode, Headers0, empty} ->
+	    send_reply(C, StatusCode, Headers0);
         {respond, StatusCode, Headers0, Body} ->
             Headers = add_content_length(Headers0, Body),
             send_reply(C, StatusCode, Headers, Body);
@@ -224,9 +233,10 @@ enc_header_val(Val) ->
     Val.
 
 enc_status(200)  -> "200 OK";
+enc_status(304)  -> <<"304 NOT MODIFIED">>;
 enc_status(404)  -> "404 NOT FOUND";
 enc_status(501)  -> "501 INTERNAL SERVER ERROR";
-enc_status(Code) -> integer_to_list(Code).
+enc_status(Code) -> [integer_to_list(Code), " WHATEVER"].
   
 
 send(#c{sock = Sock}, Data) ->

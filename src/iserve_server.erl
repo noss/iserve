@@ -1,11 +1,8 @@
 -module(iserve_server).
 -behaviour(gen_server).
 
--export([start/2, 
-	 start/3,
+-export([
 	 start_link/2,
-	 start_link/3,
-	 start_link/4,
          create/2
         ]).
 
@@ -17,27 +14,16 @@
           port,
           acceptor,
           cb_mod,
-          cb_data 
+          cb_data,
+	  starter 
          }).
 
 %%% API
 
-start(Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
-    start(Port, CbMod, undef).
-
-start(Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
-    Name = list_to_atom(lists:concat([iserve_, Port])),
-    gen_server:start({local, Name}, ?MODULE, [Port,CbMod,CbData], []).
-
-start_link(Master, {_Starter, Port, Callback, Context}) ->
-    start_link(Master, Port, Callback, Context).
-
-start_link(_Master, Port, CbMod) when is_integer(Port), is_atom(CbMod) ->
-    start_link(Port, CbMod, undef).
-
-start_link(_Master, Port, CbMod, CbData) when is_integer(Port), is_atom(CbMod) ->
-    Name = list_to_atom(lists:concat([iserve_, Port])),
-    gen_server:start_link({local, Name}, ?MODULE, [Port,CbMod,CbData], []).
+start_link(_Master, {Starter, PortAndIP, Callback, Context}) ->
+    Name = list_to_atom(lists:concat([iserve_, port_of(PortAndIP)])),
+    gen_server:start_link({local, Name}, ?MODULE, 
+			  [Starter, PortAndIP, Callback, Context], []).
 
 %% Send message to cause a new acceptor to be created
 create(ServerPid, Pid) ->
@@ -46,10 +32,22 @@ create(ServerPid, Pid) ->
 
 %%% Callbacks
 
-init([Port,CbMod,CbData]) ->
+port_of({Port, _IP}) -> Port;
+port_of(Port)        -> Port.
+
+%% TODO: Not very ipv6 safe, uh.
+ip_of({_Port, IP}) -> IP;
+ip_of(_Port)       -> {0,0,0,0}.
+	     
+
+init([Starter, PortAndIP, CbMod, CbData]) ->
     process_flag(trap_exit, true),
+    erlang:link(Starter),
+    Port = port_of(PortAndIP),
+    IP = ip_of(PortAndIP),
     case gen_tcp:listen(Port,[binary, {packet, http},
                               {reuseaddr, true},
+			      {ip, IP},
                               {active, false},
                               {backlog, 30}]) of
 	{ok, ListenSocket} ->
@@ -60,7 +58,9 @@ init([Port,CbMod,CbData]) ->
                         port          = Port,
 			acceptor      = Pid,
                         cb_mod        = CbMod,
-                        cb_data       = CbData}};
+                        cb_data       = CbData,
+			starter       = Starter
+		       }};
 	{error, Reason} ->
 	    {stop, Reason}
     end.
@@ -83,6 +83,8 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 
+handle_info({'EXIT', StartPid, normal}, #state{starter=StartPid} = State) ->
+    {stop, normal, State};
 handle_info({'EXIT', Pid, normal}, #state{acceptor=Pid} = State) ->
     {noreply, State};
 

@@ -14,7 +14,8 @@
 -export([reply_ok/2
          ,reply_not_modified/1
 	 ,reply_not_found/2
-         ,reply_redirect/2
+         ,reply_found/3
+         ,reply_see_other/3
          ,reply_temp_redirect/2
 	 ,reply_raw/3
          ,no_reply/0
@@ -50,6 +51,7 @@ behaviour_info(_Other) ->
     undefined.
 
 start() ->
+    application:start(sasl),
     application:start(iserve).
 
 add_server(Port, Module, Args) ->
@@ -69,29 +71,36 @@ no_reply() ->
 reply_ok(Headers, Body)                              ->
     response(ok, Headers, Body).
 reply_not_modified(Headers)                          ->
-    response(not_modified, Headers, <<>>).
+    response(not_modified, Headers, empty).
 reply_not_found(Headers, Body)                       ->
     response(not_found, Headers, Body).
-reply_redirect(Headers, URL)                         ->
-    LocationHeader = {'Location', URL},
-    response(redirect, [LocationHeader |Headers], <<>>).
+% You're supposed to have a body
+reply_found(Headers, URI, Body)                   ->
+    LocationHeader = {'Location', URI},
+    response(found, [LocationHeader |Headers], Body).
+reply_see_other(Headers, URI, Body) ->
+    LocationHeader = {'Location', URI},
+    response(see_other, [LocationHeader |Headers], Body).
 reply_temp_redirect(Headers, URL)                         ->
     LocationHeader = {'Location', URL},
-    response(temporary_redirect, [LocationHeader |Headers], <<>>).
+    response(temporary_redirect, [LocationHeader |Headers], empty).
 reply_raw(Status, Headers, Body)                     ->
     response(Status, Headers, Body).
 
+response(Status, Headers, {Mime, Body}) ->
+    Type = {'Content-Type', Mime},
+    Len =  {'Content-Length', erlang:iolist_size(Body)},
+    response(Status, [Type,Len|Headers], Body);
 response(Status, Headers, Body) when is_atom(Status) ->
     response(status_code(Status), Headers, Body);
 response(StatusCode, Headers, Body)                  ->
-    {respond, StatusCode, Headers, Body}.
+    {respond, StatusCode, lists:reverse(Headers), Body}.
 
 
 %% Named HTTP status codes to numeric code.
 status_code(ok)                    -> 200;
 status_code(moved_permanently)     -> 301;
 status_code(found)                 -> 302;
-status_code(redirect)              -> 302;
 status_code(see_other)             -> 303;
 status_code(not_modified)          -> 304;
 status_code(temporary_redirect)    -> 307;
@@ -99,6 +108,7 @@ status_code(bad_request)           -> 400;
 status_code(unauthorized)          -> 401;
 status_code(forbidden)             -> 403;
 status_code(not_found)             -> 404;
+status_code(method_not_allowed)    -> 405;
 status_code(internal_server_error) -> 500;
 status_code(service_unavailable)   -> 503.
 

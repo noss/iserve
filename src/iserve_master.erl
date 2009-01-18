@@ -23,8 +23,7 @@ init(_) ->
     {ok, #state{}}.
 
 handle_call({add_server, Conf}, _From, State) ->
-    {Reply, NewState} = do_add_server(Conf, State),
-    {reply, Reply, NewState};
+    call_add_server(Conf, State);
 handle_call(_Request, _From, State) ->
     {stop, unknown_call, State}.
 
@@ -49,17 +48,21 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%% Internal functions
 
-do_add_server({Starter, Port, _Callback, _Context}=Conf, State) 
-  when is_pid(Starter),  is_integer(Port) ->
+call_add_server({Starter, _Port, _Callback, _Context}=Conf, State) 
+  when is_pid(Starter) ->
     case iserve_server_sup:add_server(Conf) of
 	{ok, Pid} ->
 	    %% TODO: Monitor the little bugger
-	    {{ok, Pid}, State};
+	    Reply = {ok, Pid},
+	    NewState = State,
+	    {reply, Reply, NewState};
 	{error, _Reason}=E ->
-	    {E, State}
+	    Reply = {fail, E},
+	    NewState = State,
+	    {reply, Reply, NewState}
     end;
-do_add_server(X, State) ->
-    {{error, X}, State}.
+call_add_server(_X, State) ->
+    {reply, fail, State}.
 
     
 	    

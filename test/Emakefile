@@ -1,7 +1,7 @@
 {['../src/*'], 
  [debug_info, {d, 'TEST'}]}.
 
-{['iserve_test', 'iserve_test2', 'iserve_test3'],
+{['*'],
  [{d, 'TEST'}, debug_info]}.
 
 

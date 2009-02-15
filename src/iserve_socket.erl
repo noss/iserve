@@ -16,6 +16,7 @@
 -define(forbidden_403, "HTTP/1.1 403 Forbidden\r\n\r\n").
 -define(not_found_404, "HTTP/1.1 404 Not Found\r\n\r\n").
 -define(request_timeout_408, <<"HTTP/1.1 408 Request Timeout\r\n\r\n">>).
+-define(request_entity_too_large_413, <<"HTTP/1.1 413 Request Entity Too Large">>).
 
 -define(server_idle_timeout, 30*1000).
 
@@ -58,6 +59,9 @@ request(C, Req) ->
 	    exit(normal)
     end.
 
+headers(C, _Req, H) when length(H) > 30 ->
+    send(C, ?request_entity_too_large_413),
+    exit(normal);
 headers(C, Req, H) ->
     case gen_tcp:recv(C#c.sock, 0, ?server_idle_timeout) of
         {ok, {http_header, _, 'Content-Length', _, Val}} ->

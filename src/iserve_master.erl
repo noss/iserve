@@ -50,7 +50,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 call_add_server({Starter, _Port, _Callback, _Context}=Conf, State) 
   when is_pid(Starter) ->
-    case iserve_server_sup:add_server(Conf) of
+    case iserve_server_sup:add_server(iserve_server_sup, Conf) of
 	{ok, Pid} ->
 	    %% TODO: Monitor the little bugger
 	    Reply = {ok, Pid},

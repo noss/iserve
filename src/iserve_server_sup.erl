@@ -4,7 +4,7 @@
 
 -export([start_link/0,
 	 start_link/1,
-	 add_server/1
+	 add_server/2
 	]).
 
 -export([init/1]).
@@ -20,8 +20,8 @@ start_link(Supervisor) ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, [Supervisor]).
 
 %% Add new dynamic worker
-add_server(Conf) ->
-    supervisor:start_child(iserve_server_sup, [Conf]).
+add_server(Supervisor, Conf) ->
+    supervisor:start_child(Supervisor, [Conf]).
 
 %%% Supervisor callbacks
 

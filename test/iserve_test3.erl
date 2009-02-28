@@ -27,7 +27,8 @@ start(Port, Docroot) ->
     try
         assert_ifile(),
         {ok,_} = ifile:start(),
-        iserve_server:start(Port, ?MODULE, #data{docroot = Docroot})
+	iserve:add_server(iserve_master, Port, ?MODULE, 
+			  #data{docroot = Docroot})
     catch
          throw:no_ifile ->   
             {error, 

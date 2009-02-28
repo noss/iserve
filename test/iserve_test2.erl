@@ -6,7 +6,7 @@
 
 
 start(Port) ->
-    iserve_server:start(Port, ?MODULE).
+    iserve:add_server(iserve_master, Port, ?MODULE, x).
 
 
 iserve_request(_C, Req) ->

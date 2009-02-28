@@ -6,8 +6,7 @@
 
 
 start(Port) ->
-    iserve_server:start(Port, ?MODULE).
-
+    iserve:add_server(iserve_master, Port, ?MODULE, none).
 
 iserve_request(_C, Req) ->
     error_logger:info_report(

@@ -42,7 +42,7 @@
 
 -export([
 	 start/0,
-	 add_server/3
+	 add_server/4
 	 ]).
      
 behaviour_info(callbacks) ->
@@ -54,9 +54,9 @@ start() ->
     application:start(sasl),
     application:start(iserve).
 
-add_server(Port, Module, Args) ->
+add_server(Master, Port, Module, Args) ->
     Conf = {self(), Port, Module, Args},
-    gen_server:call(iserve_master, {add_server, Conf}).
+    gen_server:call(Master, {add_server, Conf}).
 
 send_reply(C, StatusCode, Headers) ->
     iserve_socket:send_reply(C, StatusCode, Headers).

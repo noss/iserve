@@ -2,7 +2,7 @@
  [debug_info, {d, 'TEST'}]}.
 
 {['*'],
- [{d, 'TEST'}, debug_info]}.
+ [debug_info, {d, 'TEST'}]}.
 
 
 

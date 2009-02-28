@@ -1,0 +1,30 @@
+h1. Iserve 
+
+h2. Overview
+
+Iserve is a tiny application for setting up HTTP listeners that relay requests as callbacks in a module you supply.
+
+h2. Example
+
+This is "how the callback module look":http://github.com/noss/iserve/blob/master/test/iserve_test.erl. Try it out by doing the following:
+
+<pre>
+ $ cd test
+ $ make
+ $ erl
+ Erlang (BEAM) emulator version 5.6.5 [source] [async-threads:0] [hipe] [kernel-poll:false]
+ 
+ Eshell V5.6.5  (abort with ^G)
+ 1> application:start(sasl).
+ 2> application:start(iserve).
+ 3> iserve_test:start(8080).
+</pre>
+
+While you're at it, you can also try @iserve_test2:start(8081)@ which demonstrates streaming output which could be useful for outputting large files pice-wise or perform some web 2.0 magic. That API is everything but written in stone though.
+
+h2. Applications
+
+There is also an "example of setting up a very tiny application":http://github.com/noss/iserve/blob/master/test/iserve_example.erl in the test directory. The iserve_example OTP application requires that sasl and iserve is started first.
+
+A more realistic example would perhaps want a supervision tree and a few gen_servers started, but thanks to mnesia you can get suprisingly far with something small and simple like the example.
+

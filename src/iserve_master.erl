@@ -18,12 +18,14 @@ start_link(SupervisorPid) ->
 
 %%% gen_server callbacks
 
-init(_) ->
+init([SupPid]) ->
     %% TODO, look up the sibling server supervisor?
-    {ok, #state{}}.
+    {ok, #state{supervisor=SupPid}}.
 
 handle_call({add_server, Conf}, _From, State) ->
     call_add_server(Conf, State);
+handle_call({del_server, Id}, _, State) ->
+    call_del_server(Id, State);
 handle_call(_Request, _From, State) ->
     {stop, unknown_call, State}.
 
@@ -48,21 +50,15 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%% Internal functions
 
-call_add_server({Starter, _Port, _Callback, _Context}=Conf, State) 
-  when is_pid(Starter) ->
-    case iserve_server_sup:add_server(iserve_server_sup, Conf) of
-	{ok, Pid} ->
-	    %% TODO: Monitor the little bugger
-	    Reply = {ok, Pid},
-	    NewState = State,
-	    {reply, Reply, NewState};
-	{error, _Reason}=E ->
-	    Reply = {fail, E},
-	    NewState = State,
-	    {reply, Reply, NewState}
-    end;
-call_add_server(_X, State) ->
-    {reply, fail, State}.
+call_add_server({_Starter, _Port, _Callback, _Context}=Conf, S) ->
+    {ok, Pid} = iserve_server_sup:add_server(S#state.supervisor, Conf),
+    %% TODO: Monitor the little bugger
+    Reply = {ok, Pid},
+    {reply, Reply, S}.
+
+call_del_server(Pid, S) ->
+    supervisor:terminate_child(S#state.supervisor, Pid),
+    {reply, ok, S}.
 
     
 	    

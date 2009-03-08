@@ -20,7 +20,7 @@ init([]) ->
     %% The master is for book keeping all running servers and
     %% to hold information about them.
     Master = {master, 
-	      {iserve_master, start_link, [Supervisor]},
+	      {iserve_master, start_link, [iserve_server_sup]},
 	      permanent, 2000, worker, [iserve_master]},
     
     {ok, 

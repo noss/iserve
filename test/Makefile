@@ -1,13 +1,14 @@
 
 ERL=erl
 
-.PHONY: all 
+.PHONY: all src clean
 
-all:
+all: src
+
+src:
 	$(ERL) -pz ../../*/ebin -make 
 	cp -f ../src/iserve.app .
 
 clean:
 	rm -f iserve.app *.beam *~
-
 

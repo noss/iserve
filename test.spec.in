@@ -1,0 +1,6 @@
+{logdir, "@PATH@/etc/log"}.
+
+{alias, testdir, "@PATH@"}.
+{alias, srcdir,  "@PATH@/src"}.
+
+{suites, testdir, all}.

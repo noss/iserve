@@ -1,5 +1,5 @@
 
-Steps to get a simple test up:
+h2. Steps to get a simple test up:
 
 1. cd iserve
 1. make test

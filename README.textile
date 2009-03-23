@@ -10,9 +10,10 @@ h2. Steps to get a simple test up:
 # Point your browser to http://localhost:6464/
 
 
-# You can more http listeners on other ports, served by other callback
-   modules.
+You can add more http listeners, on other ports, served by other callback modules.
+
 		iserve:add_server(iserve_master, 6465, iserve_test2, x).
-# Point your browser to http://localhost:6465/
+
+Then point your browser at http://localhost:6465/
 
 

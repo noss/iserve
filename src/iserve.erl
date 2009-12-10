@@ -17,6 +17,7 @@
          ,reply_found/3
          ,reply_see_other/3
          ,reply_temp_redirect/2
+	 ,reply_server_error/2
 	 ,reply_raw/3
          ,no_reply/0
          ,send_reply/3
@@ -30,6 +31,7 @@
          ,req_headers/1
 	 ,req_body/1
          ,req_http_version/1
+	 ,req_proplist/1
         ]).
 
 -export([c_sock/1
@@ -38,6 +40,7 @@
          ,c_peer_port/1
          ,c_cb_mod/1
          ,c_cb_data/1
+	 ,c_proplist/1
         ]).
 
 -export([
@@ -84,6 +87,8 @@ reply_see_other(Headers, URI, Body) ->
 reply_temp_redirect(Headers, URL)                         ->
     LocationHeader = {'Location', URL},
     response(temporary_redirect, [LocationHeader |Headers], empty).
+reply_server_error(Headers, Body) ->
+    response(internal_server_error, Headers, Body).
 reply_raw(Status, Headers, Body)                     ->
     response(Status, Headers, Body).
 
@@ -119,7 +124,8 @@ req_uri(#req{uri=URI})                       ->    URI.
 req_headers(#req{headers=Hs})                ->    Hs.
 req_body(#req{body=Data})                    ->    Data.
 req_http_version(#req{vsn=Version})          ->    Version.
-
+req_proplist(#req{}=R)                       ->
+    lists:zip(record_info(fields, req), tl(tuple_to_list(R))).
 
 c_sock(#c{sock = Sock})               -> Sock.
 c_port(#c{port = Port})               -> Port.
@@ -127,4 +133,6 @@ c_peer_addr(#c{peer_addr = PeerAddr}) -> PeerAddr.
 c_peer_port(#c{peer_port = PeerPort}) -> PeerPort.
 c_cb_mod(#c{cb_mod = CbMod})          -> CbMod.
 c_cb_data(#c{cb_data = CbData})       -> CbData.
+c_proplist(#c{}=C)                    ->
+    lists:zip(record_info(fields, c), tl(tuple_to_list(C))).
      

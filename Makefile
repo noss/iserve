@@ -3,6 +3,7 @@ ERL=erl
 
 .PHONY: all src test clean
 all: src 
+	./app.escript `git rev-list HEAD --max-count=1` > ebin/iserve.app
 
 src:
 	$(MAKE) -C src
@@ -21,4 +22,12 @@ test: test.spec cover.spec src
 	mkdir -p etc/log
 	run_test -pa $PWD/test -spec test.spec -cover cover.spec
 
+cover: 
+	@(cd test && erl -make )
+	@erl -noshell \
+         -eval 'file:set_cwd(test).' \
+         -eval 'cover:compile_beam_directory().' \
+         -eval 'iserve_master_test:test().' \
+         -eval '[cover:analyse_to_file(M, [html]) || M <- cover:modules()].' \
+         -s init stop
 

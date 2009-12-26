@@ -12,9 +12,9 @@
 -include("../include/iserve.hrl").
 -include("iserve_socket.hrl").
 
--define(not_implemented_501, "HTTP/1.1 501 Not Implemented\r\n\r\n").
--define(forbidden_403, "HTTP/1.1 403 Forbidden\r\n\r\n").
--define(not_found_404, "HTTP/1.1 404 Not Found\r\n\r\n").
+-define(not_implemented_501, <<"HTTP/1.1 501 Not Implemented\r\n\r\n">>).
+-define(forbidden_403, <<"HTTP/1.1 403 Forbidden\r\n\r\n">>).
+-define(not_found_404, <<"HTTP/1.1 404 Not Found\r\n\r\n">>).
 -define(request_timeout_408, <<"HTTP/1.1 408 Request Timeout\r\n\r\n">>).
 -define(request_entity_too_large_413, <<"HTTP/1.1 413 Request Entity Too Large">>).
 
@@ -24,22 +24,30 @@ start_link(CbMod, CbData, ListenPid, ListenSocket, ListenPort) ->
     proc_lib:spawn_link(?MODULE, init, 
                         [{CbMod, CbData, ListenPid, ListenSocket, ListenPort}]).
 
-init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}) ->
-    case catch gen_tcp:accept(Listen_socket) of
+init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}=InArg) ->
+    Transport = gen_tcp,
+    case Transport:accept(Listen_socket, 2000) of
 	{ok, Socket} ->
-	    inet:setopts(Socket, [{packet, http}]),
+	    inet:setopts(Socket, 
+			 [{send_timeout, 20000},
+			  {send_timeout_close, true},
+			  {packet, http_bin}]),
             %% Send the cast message to the listener process 
 	    %% to create a new acceptor
 	    iserve_server:create(Listen_pid, self()),
 	    {ok, {Addr, Port}} = inet:peername(Socket),
             C = #c{sock      = Socket,
+		   transport = Transport,
                    port      = ListenPort,
                    peer_addr = Addr,
                    peer_port = Port,
                    cb_mod    = CbMod,
                    cb_data   = CbData},
-	    request(C, #req{}); %% Jump to state 'request'
-
+	    request(C, #req{});
+	{error, timeout} ->
+	    init(InArg);
+	{error, closed} ->
+	    exit(normal);
 	Else ->
 	    error_logger:error_report([{application, iserve},
 				       "Accept failed error",
@@ -47,26 +55,29 @@ init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}) ->
 	    exit({error, accept_failed})
     end.
 
-request(C, Req) ->
-    case gen_tcp:recv(C#c.sock, 0, 5000) of
+request(#c{transport=T}=C, Req) ->
+    case T:recv(C#c.sock, 0, 5000) of
         {ok, {http_request, Method, Path, Version}} ->
             headers(C, Req#req{vsn = Version,
                                method = Method,
                                uri = Path}, []);
-        {error, {http_error, "\r\n"}} ->
+        {error, {http_error, <<"\r\n">>}} ->
 	    request(C, Req);
-	{error, {http_error, "\n"}} ->
+	{error, {http_error, <<"\n">>}} ->
             request(C, Req);
-	_Other ->
+	{error, timeout} ->
             send(C, ?request_timeout_408),
+	    exit(normal);
+	_Other ->
+	    erlang:display(_Other),
 	    exit(normal)
     end.
 
 headers(C, _Req, H) when length(H) > 30 ->
     send(C, ?request_entity_too_large_413),
     exit(normal);
-headers(C, Req, H) ->
-    case gen_tcp:recv(C#c.sock, 0, ?server_idle_timeout) of
+headers(#c{transport=T, sock=Socket}=C, Req, H) ->
+    case T:recv(Socket, 0, ?server_idle_timeout) of
         {ok, {http_header, _, Header, _, Val}} ->
             headers(C, Req, [{Header, Val}|H]);
         {error, {http_error, "\r\n"}} ->
@@ -78,19 +89,20 @@ headers(C, Req, H) ->
 	    ContentLength = 
 		case proplists:get_value('Content-Length', Headers) of
 		    undefined -> undefined;
-		    LengthValue ->
-			{Length, _} = string:to_integer(LengthValue),
+		    LengthValue when is_binary(LengthValue) ->
+			{Length, _} = string:to_integer(binary_to_list(LengthValue)),
 			Length
 		end,
 	    KeepAlive = 
 		case proplists:get_value('Connection', Headers) of
-		    undefined -> undefined;
+		    undefined -> close;
 		    ConnectionValue ->
 			keep_alive(Req#req.vsn, ConnectionValue)
 		end,
-	    NewReq = Req#req{headers = Headers,
-			     connection = KeepAlive,
-			     content_length = ContentLength},
+	    NewReq = 
+		Req#req{headers = Headers,
+			connection = KeepAlive,
+			content_length = ContentLength},
 	    body(C, NewReq);
 	_Other ->
 	    exit(normal)
@@ -99,53 +111,54 @@ headers(C, Req, H) ->
 %% Shall we keep the connection alive? 
 %% Default case for HTTP/1.1 is yes, default for HTTP/1.0 is no.
 %% Exercise for the reader - finish this so it does case insensitivity properly !
-keep_alive({1,1}, "close")      -> close;
-keep_alive({1,1}, "Close")      -> close;
+keep_alive({1,1}, <<"close">>)      -> close;
+keep_alive({1,1}, <<"Close">>)      -> close;
 keep_alive({1,1}, _)            -> keep_alive;
-keep_alive({1,0}, "Keep-Alive") -> keep_alive;
+keep_alive({1,0}, <<"Keep-Alive">>) -> keep_alive;
 keep_alive({1,0}, _)            -> close;
 keep_alive({0,9}, _)            -> close;
 keep_alive(Vsn, KA) ->
     io:format("Got = ~p~n",[{Vsn, KA}]),
     close.
 
-body(#c{sock = Sock} = C, Req) ->
+body(#c{sock = Sock, transport=T} = C, Req) ->
     case Req#req.method of
         'GET' ->
             Close = handle_get(C, Req),
             case Close of
                 close ->
-                    gen_tcp:close(Sock);
+                    T:close(Sock);
                 keep_alive ->
-                    inet:setopts(Sock, [{packet, http}]),
+                    inet:setopts(Sock, [{packet, http_bin}]),
                     request(C, #req{})
             end;
         'POST' when is_integer(Req#req.content_length) ->
             inet:setopts(Sock, [{packet, raw}]),
-            case recv_bytes(Sock, Req#req.content_length, 60000) of
+            case recv_bytes(C, Req#req.content_length, 60000) of
                 {ok, Bin} ->
                     Close = handle_post(C, Req#req{body = Bin}),
                     case Close of
                         close ->
-                            gen_tcp:close(Sock);
+                            T:close(Sock);
                         keep_alive ->
-                            inet:setopts(Sock, [{packet, http}]),
+                            inet:setopts(Sock, [{packet, http_bin}]),
                             request(C, #req{})
                     end;
                 _Other ->
                     exit(normal)
             end;
         _Other ->
+	    error:display(_Other),
             send(C, ?not_implemented_501),
             exit(normal)
     end.
 
 %% A posted body can be zero, but passing zero to gen_tcp:recv asks it
 %% to block and read as much as available.
-recv_bytes(_Sock, 0, _Timeout) ->
+recv_bytes(_C, 0, _Timeout) ->
     {ok, <<>>};
-recv_bytes(Sock, Bytes, Timeout) ->
-    gen_tcp:recv(Sock, Bytes, Timeout).
+recv_bytes(#c{sock=S, transport=T}, Bytes, Timeout) ->
+    T:recv(S, Bytes, Timeout).
 
 handle_get(C, #req{connection = Conn} = Req) ->
     case Req#req.uri of

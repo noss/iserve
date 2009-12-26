@@ -2,6 +2,7 @@
 -define(_ISERVE_SOCKET_, true).
 
 -record(c,  {sock,
+	     transport = gen_tcp,
              port,
              peer_addr,
              peer_port,

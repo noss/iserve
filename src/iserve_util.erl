@@ -3,13 +3,16 @@
 %%% Created : 12 Jul 2008 by Christian S <chsu79@gmail.com>
 
 -module(iserve_util).
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
 
 -export([urldecode/1, urlencode/1]).
 
 urldecode(String) ->
     httpd_util:decode_hex(String).
 
--ifdef(XTEST).
+-ifdef(TEST).
 urlencode_test_() ->
     [
      ?_assertMatch("ABCXYZ", urlencode("ABCXYZ")),

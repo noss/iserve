@@ -27,7 +27,9 @@ start_link(CbMod, CbData, ListenPid, ListenSocket, ListenPort) ->
 init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}) ->
     case catch gen_tcp:accept(Listen_socket) of
 	{ok, Socket} ->
-            %% Send the cast message to the listener process to create a new acceptor
+	    inet:setopts(Socket, [{packet, http}]),
+            %% Send the cast message to the listener process 
+	    %% to create a new acceptor
 	    iserve_server:create(Listen_pid, self()),
 	    {ok, {Addr, Port}} = inet:peername(Socket),
             C = #c{sock      = Socket,
@@ -44,6 +46,7 @@ init({CbMod, CbData, Listen_pid, Listen_socket, ListenPort}) ->
 				       io_lib:format("~p",[Else])]),
 	    exit({error, accept_failed})
     end.
+
 request(C, Req) ->
     case gen_tcp:recv(C#c.sock, 0, 5000) of
         {ok, {http_request, Method, Path, Version}} ->
@@ -64,12 +67,6 @@ headers(C, _Req, H) when length(H) > 30 ->
     exit(normal);
 headers(C, Req, H) ->
     case gen_tcp:recv(C#c.sock, 0, ?server_idle_timeout) of
-        {ok, {http_header, _, 'Content-Length', _, Val}} ->
-            Len = list_to_integer(Val),
-            headers(C, Req#req{content_length = Len}, [{'Content-Length', Len}|H]);
-        {ok, {http_header, _, 'Connection', _, Val}} ->
-            Keep_alive = keep_alive(Req#req.vsn, Val),
-            headers(C, Req#req{connection = Keep_alive}, [{'Connection', Val}|H]);
         {ok, {http_header, _, Header, _, Val}} ->
             headers(C, Req, [{Header, Val}|H]);
         {error, {http_error, "\r\n"}} ->
@@ -77,7 +74,24 @@ headers(C, Req, H) ->
 	{error, {http_error, "\n"}} ->
             headers(C, Req, H);
         {ok, http_eoh} ->
-            body(C, Req#req{headers = lists:reverse(H)});
+	    Headers = lists:reverse(H),
+	    ContentLength = 
+		case proplists:get_value('Content-Length', Headers) of
+		    undefined -> undefined;
+		    LengthValue ->
+			{Length, _} = string:to_integer(LengthValue),
+			Length
+		end,
+	    KeepAlive = 
+		case proplists:get_value('Connection', Headers) of
+		    undefined -> undefined;
+		    ConnectionValue ->
+			keep_alive(Req#req.vsn, ConnectionValue)
+		end,
+	    NewReq = Req#req{headers = Headers,
+			     connection = KeepAlive,
+			     content_length = ContentLength},
+	    body(C, NewReq);
 	_Other ->
 	    exit(normal)
     end.

@@ -45,7 +45,7 @@ init([Starter, PortAndIP, CbMod, CbData]) ->
     erlang:link(Starter),
     Port = port_of(PortAndIP),
     IP = ip_of(PortAndIP),
-    case gen_tcp:listen(Port,[binary, {packet, http},
+    case gen_tcp:listen(Port,[binary,
                               {reuseaddr, true},
 			      {ip, IP},
                               {active, false},

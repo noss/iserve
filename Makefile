@@ -10,6 +10,8 @@ src:
 
 clean:
 	rm -f ebin/*
+	rm -f examples/*.beam
+	rm -f test/*.beam test/*.html
 	$(MAKE) -C src clean
 	$(MAKE) -C test clean
 

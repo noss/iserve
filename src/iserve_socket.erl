@@ -148,7 +148,7 @@ body(#c{sock = Sock, transport=T} = C, Req) ->
                     exit(normal)
             end;
         _Other ->
-	    error:display(_Other),
+            erlang:display(_Other),
             send(C, ?not_implemented_501),
             exit(normal)
     end.

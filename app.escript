@@ -1,25 +1,22 @@
 #!/usr/bin/env escript
 
-template() ->
+template(Vsn) ->
     {application, iserve,
-        [{description, "Web Server"},
-         {vsn, "%ISERVE_VSN%"},
+        [{description, "IServe Web Server"},
+         {vsn, Vsn},
          {modules, [
             iserve_sup,
             iserve_app,
             iserve_server,
             iserve_socket
             ]},
-
          {registered, [ iserve_sup]},
          {applications, [kernel, stdlib, sasl]},
-     {mod, {iserve_app, []}},
-     {env, [{port, 8080}, {callback, iserve_test}]}]}.
+         {mod, {iserve_app, []}},
+         {env, []}
+         ]}.
 
 main([VSN]) ->
-    {application, Name, Settings} = template(),
-    D1 = dict:from_list(Settings),
-    D2 = dict:store(vsn, VSN, D1),
-    AppOut = {application, Name, dict:to_list(D2)},
+    AppOut = template(VSN),
     io:fwrite('~p.~n', [AppOut]).
 

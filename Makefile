@@ -3,7 +3,7 @@ ERL=erl
 
 .PHONY: all src test clean
 all: src 
-	./app.escript `git rev-list HEAD --max-count=1` > ebin/iserve.app
+	./app.escript `cat LATEST_VERSION` > ebin/iserve.app
 
 src:
 	$(MAKE) -C src
@@ -14,6 +14,9 @@ clean:
 	rm -f test/*.beam test/*.html
 	$(MAKE) -C src clean
 	$(MAKE) -C test clean
+
+examples: all
+	$(MAKE) -C examples/iserve_system
 
 test.spec: test.spec.in
 	cat test.spec.in | sed -e "s,@PATH@,$(PWD)," > $(PWD)/test.spec

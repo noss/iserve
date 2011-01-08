@@ -1,0 +1,4 @@
+*.spec
+*.boot
+*.script
+etc

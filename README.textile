@@ -1,19 +1,13 @@
 
-h2. Steps to get a simple test up:
+h2. Steps to get a web server up:
 
 # cd iserve
-# make test
-# erl -pa ./test
-		application:start(sasl).
-		application:start(iserve).
-		iserve:add_server(iserve_master, 6464, iserve_test, x).
-# Point your browser to http://localhost:6464/
+# make examples
+# cd examples/iserve_system
+# erl -boot iserve_system
 
+Finally, point your browser to http://localhost:6464/
 
-You can add more http listeners, on other ports, served by other callback modules.
-
-		iserve:add_server(iserve_master, 6465, iserve_test2, x).
-
-Then point your browser at http://localhost:6465/
+Inspect src/iserve_system_app.erl and src/iserve_system_cb.erl for the source code for this app, and ebin/iserve_system.app for the configuration of it.
 
 

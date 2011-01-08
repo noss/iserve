@@ -1,6 +1,6 @@
 -module(iserve_test2).
 -export([start/1, iserve_request/2]).
--include("../include/iserve.hrl").
+-include_lib("iserve/include/iserve.hrl").
 
 -behaviour(iserve).
 

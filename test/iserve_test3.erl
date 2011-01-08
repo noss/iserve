@@ -9,7 +9,7 @@
 
 -export([start/2, iserve_request/2]).
 
--include("../include/iserve.hrl").
+-include_lib("iserve/include/iserve.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -behaviour(iserve).
